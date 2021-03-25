@@ -3,7 +3,7 @@ import numpy as np
 import scipy.signal
 import timeit
 import python_speech_features
-import RPi.GPIO as GPIO
+# import RPi.GPIO as GPIO
 
 from tflite_runtime.interpreter import Interpreter
 
@@ -56,63 +56,50 @@ print(input_details)
 
 # This gets called every 0.5 seconds
 def sd_callback(rec, frames, time, status):
+	# Start timing for testing
+	start = timeit.default_timer()
 
+	# Notify if errors
+	if status:
+	    print('Error:', status)
 
-    # Start timing for testing
-    start = timeit.default_timer()
-    
-    # Notify if errors
-    if status:
-        print('Error:', status)
-    
-    # Remove 2nd dimension from recording sample
-    rec = np.squeeze(rec)
-    
-    # Resample
-    
-    # Save recording onto sliding window
-    window[:len(window)//2] = window[len(window)//2:]
-    window[len(window)//2:] = rec
+	# Remove 2nd dimension from recording sample
+	rec = np.squeeze(rec)
 
-    # Compute features
-    mfccs = python_speech_features.base.mfcc(window, 
-                                        samplerate=8000,
-                                        winlen=0.256,
-                                        winstep=0.050,
-                                        numcep=num_mfcc,
-                                        nfilt=26,
-                                        nfft=2048,
-                                        preemph=0.0,
-                                        ceplifter=0,
-                                        appendEnergy=False,
-                                        winfunc=np.hanning)
-    mfccs = mfccs.transpose()
+	# Resample
 
-    # Make prediction from model
-    in_tensor = np.float32(mfccs.reshape(1, mfccs.shape[0], mfccs.shape[1], 1))
-    interpreter.set_tensor(input_details[0]['index'], in_tensor)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-#     print(output_data)
-    
-    val = output_data[0]
-    if val[0] > word_threshold:
-        print("down  ", val[0] )
-    if val[1] > word_threshold:
-        print("left  ", val[1])
-    if val[2] > word_threshold:
-        print("right  ", val[2])
-    if val[3] > word_threshold:
-        print("stop  ", val[3])
-    if val[4] > word_threshold:
-        print("up  ", val[4])
-#         GPIO.output(led_pin, GPIO.HIGH)
+	# Save recording onto sliding window
+	window[:len(window)//2] = window[len(window)//2:]
+	window[len(window)//2:] = rec
 
-#     if debug_acc:
-#         print(val)
-#     
-    if debug_time:
-        print(timeit.default_timer() - start)
+	# Compute features
+	mfccs = python_speech_features.base.mfcc(window, 
+	                                    samplerate=8000,
+	                                    winlen=0.256,
+	                                    winstep=0.050,
+	                                    numcep=num_mfcc,
+	                                    nfilt=26,
+	                                    nfft=2048,
+	                                    preemph=0.0,
+	                                    ceplifter=0,
+	                                    appendEnergy=False,
+	                                    winfunc=np.hanning)
+	mfccs = mfccs.transpose()
+
+	# Make prediction from model
+	in_tensor = np.float32(mfccs.reshape(1, mfccs.shape[0], mfccs.shape[1], 1))
+	interpreter.set_tensor(input_details[0]['index'], in_tensor)
+	interpreter.invoke()
+	output_data = interpreter.get_tensor(output_details[0]['index'])
+	#     print(output_data)
+	cmd=['backward','forward','left','off', 'on','right','stop','silence']
+	val = output_data[0]
+	for i,word in enumerate(cmd):
+	    if val[i]>word_threshold:
+	    	print(word,val[i])
+
+	if debug_time:
+		print(timeit.default_timer() - start)
 
 # Start streaming from microphone
 with sd.InputStream(channels=num_channels,
